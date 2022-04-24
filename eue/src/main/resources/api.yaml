@@ -171,6 +171,8 @@ paths:
                             properties:
                                 uploadType:
                                     $ref: '#/components/schemas/uploadType'
+                                properties:
+                                    $ref: '#/components/schemas/ResourceCreationPropertiesModel'
                                 size:
                                     type: integer
                                     format: int64
