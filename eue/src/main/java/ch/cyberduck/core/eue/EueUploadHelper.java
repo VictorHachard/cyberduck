@@ -88,14 +88,14 @@ public final class EueUploadHelper {
     public static FileUpdateResponseRepresentation updateResource(final EueSession session, final String resourceId,
                                                                   final TransferStatus status, final UploadType uploadType) throws BackgroundException {
         try {
-            final ResourceResourceIdBody body = new ResourceResourceIdBody();
+            final ResourceResourceIdBody body = new ResourceResourceIdBody().uploadType(uploadType);
             if(status.getTimestamp() != null) {
                 final ResourceCreationPropertiesModel property = new ResourceCreationPropertiesModel();
                 property.setUiwin32(new UiWin32().lastModificationMillis(new DateTime(status.getTimestamp()).getMillis()));
                 body.setProperties(property);
             }
             return new PostResourceApi(new EueApiClient(session)).resourceResourceIdPost(
-                    resourceId, body.uploadType(uploadType), null, null, null, null);
+                    resourceId, body, null, null, null, null);
         }
         catch(ApiException e) {
             throw new EueExceptionMappingService().map(e);
