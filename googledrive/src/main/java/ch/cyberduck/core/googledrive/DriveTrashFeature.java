@@ -46,7 +46,8 @@ public class DriveTrashFeature implements Delete {
     @Override
     public void delete(final Map<Path, TransferStatus> files, final PasswordCallback prompt, final Callback callback) throws BackgroundException {
         for(Path f : files.keySet()) {
-            if(f.getType().contains(Path.Type.placeholder)) {
+            if(f.isPlaceholder()) {
+                log.warn(String.format("Ignore placeholder %s", f));
                 continue;
             }
             try {
@@ -54,7 +55,7 @@ public class DriveTrashFeature implements Delete {
                     session.getClient().teamdrives().delete(fileid.getFileId(f, new DisabledListProgressListener())).execute();
                 }
                 else {
-                    if(f.attributes().isDuplicate()) {
+                    if(f.attributes().isHidden()) {
                         log.warn(String.format("Delete file %s already in trash", f));
                         new DriveDeleteFeature(session, fileid).delete(Collections.singletonList(f), prompt, callback);
                         continue;
@@ -75,6 +76,10 @@ public class DriveTrashFeature implements Delete {
 
     @Override
     public boolean isSupported(final Path file) {
+        if(file.isPlaceholder()) {
+            // Disable for application/vnd.google-apps
+            return false;
+        }
         return !file.getType().contains(Path.Type.shared);
     }
 

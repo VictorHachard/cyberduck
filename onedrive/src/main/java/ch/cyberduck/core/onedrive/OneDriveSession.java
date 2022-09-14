@@ -19,21 +19,23 @@ import ch.cyberduck.core.DisabledListProgressListener;
 import ch.cyberduck.core.Host;
 import ch.cyberduck.core.ListService;
 import ch.cyberduck.core.Path;
-import ch.cyberduck.core.UrlProvider;
+import ch.cyberduck.core.SimplePathPredicate;
 import ch.cyberduck.core.exception.BackgroundException;
 import ch.cyberduck.core.exception.NotfoundException;
 import ch.cyberduck.core.features.Lock;
 import ch.cyberduck.core.onedrive.features.GraphLockFeature;
-import ch.cyberduck.core.onedrive.features.GraphUrlProvider;
 import ch.cyberduck.core.ssl.X509KeyManager;
 import ch.cyberduck.core.ssl.X509TrustManager;
 
 import org.apache.commons.lang3.StringUtils;
+import org.nuxeo.onedrive.client.ODataQuery;
+import org.nuxeo.onedrive.client.types.BaseItem;
 import org.nuxeo.onedrive.client.types.Drive;
 import org.nuxeo.onedrive.client.types.DriveItem;
 import org.nuxeo.onedrive.client.types.ItemReference;
 import org.nuxeo.onedrive.client.types.User;
 
+import java.io.IOException;
 import java.util.Optional;
 
 public class OneDriveSession extends GraphSession {
@@ -77,6 +79,15 @@ public class OneDriveSession extends GraphSession {
         }
     }
 
+    @Override
+    public DriveItem.Metadata getMetadata(final DriveItem item, ODataQuery query) throws IOException {
+        if (query == null) {
+            query = new ODataQuery();
+        }
+        query.select(BaseItem.Property.ParentReference, DriveItem.Property.RemoteItem);
+        return super.getMetadata(item, query);
+    }
+
     /**
      * Resolves given path to OneDriveItem
      */
@@ -94,14 +105,14 @@ public class OneDriveSession extends GraphSession {
                 return new Drive(user.asDirectoryObject()).getRoot();
             }
         }
-        final String versionId = fileid.getFileId(file, new DisabledListProgressListener());
-        if(StringUtils.isEmpty(versionId)) {
+        final String id = fileid.getFileId(file, new DisabledListProgressListener());
+        if(StringUtils.isEmpty(id)) {
             throw new NotfoundException(String.format("Version ID for %s is empty", file.getAbsolute()));
         }
 
         // recursively find items …
 
-        final String[] idParts = versionId.split(String.valueOf(Path.DELIMITER));
+        final String[] idParts = id.split(String.valueOf(Path.DELIMITER));
         final String driveId;
         final String itemId;
         if(idParts.length == 2 || !resolveLastItem) {
@@ -124,8 +135,10 @@ public class OneDriveSession extends GraphSession {
         if(file.isRoot()) {
             return false;
         }
-
-        final ContainerItem containerItem = getContainer(file);
+        if(file.attributes().isDuplicate()) {
+            return false;
+        }
+        final ContainerItem containerItem = this.getContainer(file);
 
         // Operations using container access:
         // touch, directory
@@ -167,10 +180,10 @@ public class OneDriveSession extends GraphSession {
 
     @Override
     public ContainerItem getContainer(final Path file) {
-        if(OneDriveListService.MYFILES_PREDICATE.test(file) || file.isChild(OneDriveListService.MYFILES_NAME)) {
+        if(new SimplePathPredicate(OneDriveListService.MYFILES_NAME).test(file) || file.isChild(OneDriveListService.MYFILES_NAME)) {
             return MYFILES;
         }
-        if(OneDriveListService.SHARED_PREDICATE.test(file) || file.isChild(OneDriveListService.SHARED_NAME)) {
+        if(new SimplePathPredicate(OneDriveListService.SHARED_NAME).test(file) || file.isChild(OneDriveListService.SHARED_NAME)) {
             return SHAREDFILES;
         }
         return ContainerItem.EMPTY;

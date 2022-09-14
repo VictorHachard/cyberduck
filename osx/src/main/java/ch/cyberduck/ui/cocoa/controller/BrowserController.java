@@ -57,6 +57,7 @@ import ch.cyberduck.core.keychain.SecurityFunctions;
 import ch.cyberduck.core.local.Application;
 import ch.cyberduck.core.local.BrowserLauncherFactory;
 import ch.cyberduck.core.local.DisabledApplicationQuitCallback;
+import ch.cyberduck.core.local.TemporaryFileService;
 import ch.cyberduck.core.local.TemporaryFileServiceFactory;
 import ch.cyberduck.core.logging.UnifiedSystemLogTranscriptListener;
 import ch.cyberduck.core.pasteboard.HostPasteboard;
@@ -73,17 +74,16 @@ import ch.cyberduck.core.threading.BackgroundAction;
 import ch.cyberduck.core.threading.BrowserTransferBackgroundAction;
 import ch.cyberduck.core.threading.DefaultMainAction;
 import ch.cyberduck.core.threading.DisconnectBackgroundAction;
+import ch.cyberduck.core.threading.QuicklookTransferBackgroundAction;
 import ch.cyberduck.core.threading.WindowMainAction;
 import ch.cyberduck.core.threading.WorkerBackgroundAction;
 import ch.cyberduck.core.transfer.CopyTransfer;
 import ch.cyberduck.core.transfer.DownloadTransfer;
 import ch.cyberduck.core.transfer.SyncTransfer;
 import ch.cyberduck.core.transfer.Transfer;
-import ch.cyberduck.core.transfer.TransferAction;
 import ch.cyberduck.core.transfer.TransferCallback;
 import ch.cyberduck.core.transfer.TransferItem;
 import ch.cyberduck.core.transfer.TransferOptions;
-import ch.cyberduck.core.transfer.TransferPrompt;
 import ch.cyberduck.core.transfer.UploadTransfer;
 import ch.cyberduck.core.vault.LoadingVaultLookupListener;
 import ch.cyberduck.core.vault.VaultCredentials;
@@ -100,6 +100,7 @@ import ch.cyberduck.core.worker.MountWorker;
 import ch.cyberduck.core.worker.SearchWorker;
 import ch.cyberduck.core.worker.SessionListWorker;
 import ch.cyberduck.core.worker.TouchWorker;
+import ch.cyberduck.core.worker.UploadShareWorker;
 import ch.cyberduck.ui.browser.BookmarkColumn;
 import ch.cyberduck.ui.browser.BrowserColumn;
 import ch.cyberduck.ui.browser.DownloadDirectoryFinder;
@@ -194,6 +195,7 @@ public class BrowserController extends WindowController implements NSToolbar.Del
 
     private final Navigation navigation = new Navigation();
     private final TranscriptListener transcript = new UnifiedSystemLogTranscriptListener();
+    private final TemporaryFileService temporary = TemporaryFileServiceFactory.instance();
 
     /**
      * Connection pool
@@ -591,11 +593,10 @@ public class BrowserController extends WindowController implements NSToolbar.Del
             if(!file.isFile()) {
                 continue;
             }
-            downloads.add(new TransferItem(file, TemporaryFileServiceFactory.get().create(pool.getHost().getUuid(), file)));
+            downloads.add(new TransferItem(file, temporary.create(pool.getHost().getUuid(), file)));
         }
         if(downloads.size() > 0) {
-            final Transfer download = new DownloadTransfer(pool.getHost(), downloads);
-            this.background(new QuicklookTransferBackgroundAction(this, quicklook, pool, download, downloads));
+            this.background(new QuicklookTransferBackgroundAction(this, quicklook, pool, downloads));
         }
     }
 
@@ -719,7 +720,7 @@ public class BrowserController extends WindowController implements NSToolbar.Del
     @Action
     public boolean performDragOperation(final NSDraggingInfo sender) {
         for(Host bookmark : HostPasteboard.getPasteboard()) {
-            final Host duplicate = new HostDictionary().deserialize(bookmark.serialize(SerializerFactory.get()));
+            final Host duplicate = new HostDictionary<>().deserialize(bookmark.serialize(SerializerFactory.get()));
             // Make sure a new UUID is assigned for duplicate
             duplicate.setUuid(null);
             bookmarks.add(0, duplicate);
@@ -1877,7 +1878,7 @@ public class BrowserController extends WindowController implements NSToolbar.Del
     public void duplicateBookmarkButtonClicked(final ID sender) {
         final Host selected = bookmarkModel.getSource().get(bookmarkTable.selectedRow().intValue());
         this.selectBookmarks(BookmarkSwitchSegement.bookmarks);
-        final Host duplicate = new HostDictionary().deserialize(selected.serialize(SerializerFactory.get()));
+        final Host duplicate = new HostDictionary<>().deserialize(selected.serialize(SerializerFactory.get()));
         // Make sure a new UUID is asssigned for duplicate
         duplicate.setUuid(null);
         this.addBookmark(duplicate);
@@ -1899,7 +1900,7 @@ public class BrowserController extends WindowController implements NSToolbar.Del
             if(null == selected || !selected.isDirectory()) {
                 selected = workdir;
             }
-            bookmark = new HostDictionary().deserialize(pool.getHost().serialize(SerializerFactory.get()));
+            bookmark = new HostDictionary<>().deserialize(pool.getHost().serialize(SerializerFactory.get()));
             // Make sure a new UUID is asssigned for duplicate
             bookmark.setUuid(null);
             bookmark.setDefaultPath(selected.getAbsolute());
@@ -2279,7 +2280,7 @@ public class BrowserController extends WindowController implements NSToolbar.Del
             selected = workdir;
         }
         final BrowserController c = MainController.newDocument(true);
-        final Host duplicate = new HostDictionary().deserialize(pool.getHost().serialize(SerializerFactory.get()));
+        final Host duplicate = new HostDictionary<>().deserialize(pool.getHost().serialize(SerializerFactory.get()));
         // Make sure a new UUID is assigned for duplicate
         duplicate.setUuid(null);
         duplicate.setDefaultPath(selected.getAbsolute());
@@ -2520,29 +2521,91 @@ public class BrowserController extends WindowController implements NSToolbar.Del
 
     @Action
     public void revertFileButtonClicked(final ID sender) {
-        new RevertController(this).revert(this.getSelectedPaths());
+        final List<Path> selected = this.getSelectedPaths();
+        new RevertController(this, pool).revert(selected, new ReloadCallback() {
+            @Override
+            public void done(final List<Path> files) {
+                reload(workdir(), selected, Collections.emptyList());
+            }
+        });
     }
 
     @Action
     public void restoreFileButtonClicked(final ID sender) {
-        new RestoreController(this).restore(this.getSelectedPaths());
+        final List<Path> selected = this.getSelectedPaths();
+        new RestoreController(this, pool).restore(selected, new ReloadCallback() {
+            @Override
+            public void done(final List<Path> files) {
+                reload(workdir(), selected, selected);
+            }
+        });
     }
 
     @Action
     public void deleteFileButtonClicked(final ID sender) {
-        new DeleteController(this).delete(this.getSelectedPaths());
+        final List<Path> selected = this.getSelectedPaths();
+        new DeleteController(this, pool).delete(selected, new ReloadCallback() {
+            @Override
+            public void done(final List<Path> files) {
+                reload(workdir(), selected, Collections.emptyList());
+            }
+        });
     }
 
     @Action
     public void shareFileButtonClicked(final ID sender) {
-        final Path file = this.getSelectedPath();
+        final Path file = null != this.getSelectedPath() ? this.getSelectedPath() : this.workdir();
         this.background(new WorkerBackgroundAction<>(this, pool,
                         new DownloadShareWorker<Void>(file, null, PasswordCallbackFactory.get(this)) {
                             @Override
                             public void cleanup(final DescriptiveUrl url) {
                                 // Display
                                 if(!DescriptiveUrl.EMPTY.equals(url)) {
-                                    final AlertController alert = new AlertController(NSAlert.alert(LocaleFactory.localizedString("Create Download Share", "Share"),
+                                    final AlertController alert = new AlertController(NSAlert.alert(LocaleFactory.localizedString("Share…", "Main"),
+                                            MessageFormat.format(LocaleFactory.localizedString("You have successfully created a share link for {0}.", "SDS"), file.getName()),
+                                            LocaleFactory.localizedString("Continue", "Credentials"),
+                                            LocaleFactory.localizedString("Copy", "Main"),
+                                            null)) {
+                                        @Override
+                                        public void callback(final int returncode) {
+                                            switch(returncode) {
+                                                case SheetCallback.CANCEL_OPTION:
+                                                    final NSPasteboard pboard = NSPasteboard.generalPasteboard();
+                                                    pboard.declareTypes(NSArray.arrayWithObject(NSString.stringWithString(NSPasteboard.StringPboardType)), null);
+                                                    if(!pboard.setStringForType(url.getUrl(), NSPasteboard.StringPboardType)) {
+                                                        log.error(String.format("Error writing URL to %s", NSPasteboard.StringPboardType));
+                                                    }
+                                            }
+                                        }
+
+                                        @Override
+                                        public NSView getAccessoryView(final NSAlert alert) {
+                                            final NSTextField field = NSTextField.textfieldWithFrame(new NSRect(0, 22));
+                                            field.setEditable(false);
+                                            field.setSelectable(true);
+                                            field.cell().setWraps(false);
+                                            field.setAttributedStringValue(NSAttributedString.attributedStringWithAttributes(url.getUrl(), TRUNCATE_MIDDLE_ATTRIBUTES));
+                                            return field;
+                                        }
+                                    };
+                                    alert.beginSheet(BrowserController.this);
+                                }
+                            }
+                        }
+                )
+        );
+    }
+
+    @Action
+    public void requestFilesButtonClicked(final ID sender) {
+        final Path file = null != this.getSelectedPath() ? this.getSelectedPath() : this.workdir();
+        this.background(new WorkerBackgroundAction<>(this, pool,
+                        new UploadShareWorker<Void>(file, null, PasswordCallbackFactory.get(this)) {
+                            @Override
+                            public void cleanup(final DescriptiveUrl url) {
+                                // Display
+                                if(!DescriptiveUrl.EMPTY.equals(url)) {
+                                    final AlertController alert = new AlertController(NSAlert.alert(LocaleFactory.localizedString("Share…", "Main"),
                                             MessageFormat.format(LocaleFactory.localizedString("You have successfully created a share link for {0}.", "SDS"), file.getName()),
                                             LocaleFactory.localizedString("Continue", "Credentials"),
                                             LocaleFactory.localizedString("Copy", "Main"),
@@ -3528,6 +3591,7 @@ public class BrowserController extends WindowController implements NSToolbar.Del
         for(Editor editor : editors.values()) {
             editor.close();
         }
+        temporary.shutdown();
         quicklook.close();
 
         bookmarkTable.setDelegate(null);
@@ -3550,6 +3614,9 @@ public class BrowserController extends WindowController implements NSToolbar.Del
 
         archiveMenu.setDelegate(null);
         editMenu.setDelegate(null);
+
+        InfoControllerFactory.remove(this);
+        ConnectionControllerFactory.remove(this);
 
         super.invalidate();
     }
@@ -3828,53 +3895,4 @@ public class BrowserController extends WindowController implements NSToolbar.Del
         }
     }
 
-    private static final class QuicklookTransferBackgroundAction extends BrowserTransferBackgroundAction {
-        private final QuickLook quicklook;
-        private final List<TransferItem> downloads;
-
-        public QuicklookTransferBackgroundAction(final Controller controller, final QuickLook quicklook, final SessionPool session, final Transfer download,
-                                                 final List<TransferItem> downloads) {
-            super(controller, session, download, new TransferCallback() {
-                @Override
-                public void complete(final Transfer transfer) {
-                    //
-                }
-            }, new TransferPrompt() {
-                @Override
-                public TransferAction prompt(final TransferItem item) {
-                    return TransferAction.comparison;
-                }
-
-                @Override
-                public boolean isSelected(final TransferItem file) {
-                    return true;
-                }
-
-                @Override
-                public void message(final String message) {
-                    controller.message(message);
-                }
-            });
-            this.quicklook = quicklook;
-            this.downloads = downloads;
-        }
-
-        @Override
-        public void cleanup() {
-            super.cleanup();
-            final List<Local> previews = new ArrayList<>();
-            for(TransferItem download : downloads) {
-                previews.add(download.local);
-            }
-            // Change files in Quick Look
-            quicklook.select(previews);
-            // Open Quick Look Preview Panel
-            quicklook.open();
-        }
-
-        @Override
-        public String getActivity() {
-            return LocaleFactory.localizedString("Quick Look", "Status");
-        }
-    }
 }

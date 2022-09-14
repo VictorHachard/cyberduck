@@ -11,7 +11,11 @@ import ch.cyberduck.core.onedrive.AbstractSharepointSession;
 import ch.cyberduck.core.onedrive.features.GraphFileIdProvider;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.nuxeo.onedrive.client.ODataQuery;
 import org.nuxeo.onedrive.client.Sites;
+import org.nuxeo.onedrive.client.types.BaseItem;
 import org.nuxeo.onedrive.client.types.SharePointIds;
 import org.nuxeo.onedrive.client.types.Site;
 
@@ -26,6 +30,8 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 public class SitesListService extends AbstractListService<Site.Metadata> {
+    private static final Logger log = LogManager.getLogger(SitesListService.class);
+
     private final AbstractSharepointSession session;
 
     public SitesListService(final AbstractSharepointSession session, final GraphFileIdProvider fileid) {
@@ -35,10 +41,23 @@ public class SitesListService extends AbstractListService<Site.Metadata> {
 
     @Override
     protected Iterator<Site.Metadata> getIterator(final Path directory) throws BackgroundException {
-        if(!session.isSingleSite() && directory.getParent().isRoot()) {
-            return Sites.getSites(session.getClient(), "*", Site.Select.SharepointIDs);
+        if(log.isDebugEnabled()) {
+            log.debug(String.format("Return sites for %s", directory));
         }
-        return Sites.getSites(session.getSite(directory.getParent()), Site.Select.SharepointIDs);
+        final ODataQuery query = new ODataQuery().select(
+                BaseItem.Property.Id,
+                BaseItem.Property.Name,
+                BaseItem.Property.WebUrl,
+                Site.Property.DisplayName,
+                Site.Property.Root,
+                Site.Property.SharepointIds);
+        if(!session.isSingleSite() && directory.getParent().isRoot()) {
+            // .search() uses OData $search, which doesn't support '*'.
+            // But GET sites has query-parameter "search" which does support '*'.
+            // (┛ಠ_ಠ)┛彡┻━┻
+            return Sites.getSites(session.getClient(), query.set("search", "*"));
+        }
+        return Sites.getSites(session.getSite(directory.getParent()), query);
     }
 
     @Override

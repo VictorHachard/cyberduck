@@ -59,7 +59,6 @@ import ch.cyberduck.core.exception.HostParserException;
 import ch.cyberduck.core.importer.*;
 import ch.cyberduck.core.local.Application;
 import ch.cyberduck.core.local.BrowserLauncherFactory;
-import ch.cyberduck.core.local.DefaultLocalDirectoryFeature;
 import ch.cyberduck.core.local.TemporaryFileServiceFactory;
 import ch.cyberduck.core.notification.NotificationServiceFactory;
 import ch.cyberduck.core.oauth.OAuth2TokenListenerRegistry;
@@ -643,22 +642,14 @@ public class MainController extends BundleController implements NSApplication.De
             }
             else if("cyberduckprofile".equals(f.getExtension())) {
                 try {
-                    final Profile profile = ProfileReaderFactory.get().read(f);
-                    if(profile.isEnabled()) {
-                        if(log.isDebugEnabled()) {
-                            log.debug(String.format("Register profile %s", profile));
-                        }
-                        final ProtocolFactory protocols = ProtocolFactory.get();
-                        protocols.register(profile);
+                    if(log.isDebugEnabled()) {
+                        log.debug(String.format("Register profile %s", f));
+                    }
+                    final Local copy = ProtocolFactory.get().register(f);
+                    if(copy != null) {
+                        final Profile profile = ProfileReaderFactory.get().read(copy);
                         final Host host = new Host(profile, profile.getDefaultHostname(), profile.getDefaultPort());
                         newDocument().addBookmark(host);
-                        // Register in application support
-                        final Local profiles = LocalFactory.get(SupportDirectoryFinderFactory.get().find(),
-                            preferences.getProperty("profiles.folder.name"));
-                        if(!profiles.exists()) {
-                            new DefaultLocalDirectoryFeature().mkdir(profiles);
-                        }
-                        f.copy(LocalFactory.get(profiles, f.getName()));
                     }
                 }
                 catch(AccessDeniedException e) {
@@ -984,10 +975,10 @@ public class MainController extends BundleController implements NSApplication.De
         });
         final Rendezvous bonjour = RendezvousFactory.instance();
         bonjour.addListener(new NotificationRendezvousListener(bonjour));
-        final SchemeHandler schemeHandler = SchemeHandlerFactory.get();
         if(preferences.getBoolean("defaulthandler.reminder")
             && preferences.getInteger("uses") > 0) {
-            if(!SchemeHandlerFactory.get().isDefaultHandler(Arrays.asList(Scheme.ftp.name(), Scheme.ftps.name(), Scheme.sftp.name()),
+            final SchemeHandler schemeHandler = SchemeHandlerFactory.get();
+            if(!schemeHandler.isDefaultHandler(Arrays.asList(Scheme.ftp.name(), Scheme.ftps.name(), Scheme.sftp.name()),
                 new Application(preferences.getProperty("application.identifier")))) {
                 final NSAlert alert = NSAlert.alert(
                     LocaleFactory.localizedString("Set Cyberduck as default application for FTP and SFTP locations?", "Configuration"),
@@ -1060,17 +1051,6 @@ public class MainController extends BundleController implements NSApplication.De
             // Synchronize and register timer
             profiles.register();
         }
-        // Register OAuth handler
-        final ProtocolFactory protocols = ProtocolFactory.get();
-        for(String handler : Arrays.asList(preferences.getProperty("oauth.handler.scheme"),
-                StringUtils.substringBefore(protocols.forType(Protocol.Type.googlestorage).getOAuthRedirectUrl(), ':'),
-                StringUtils.substringBefore(protocols.forType(Protocol.Type.googledrive).getOAuthRedirectUrl(), ':'))) {
-            if(log.isInfoEnabled()) {
-                log.info(String.format("Register OAuth handler %s", handler));
-            }
-            schemeHandler.setDefaultHandler(new Application(preferences.getProperty("application.identifier")),
-                    Collections.singletonList(handler));
-        }
         NSAppleEventManager.sharedAppleEventManager().setEventHandler_andSelector_forEventClass_andEventID(
                 this.id(), Foundation.selector("handleGetURLEvent:withReplyEvent:"), kInternetEventClass, kAEGetURL);
     }
@@ -1122,7 +1102,7 @@ public class MainController extends BundleController implements NSApplication.De
                 if(browser.isMounted()) {
                     // The workspace should be saved. Serialize all open browser sessions
                     final Host serialized
-                        = new HostDictionary().deserialize(browser.getSession().getHost().serialize(SerializerFactory.get()));
+                            = new HostDictionary<>().deserialize(browser.getSession().getHost().serialize(SerializerFactory.get()));
                     serialized.setWorkdir(browser.workdir());
                     sessions.add(serialized);
                     browser.window().saveFrameUsingName(serialized.getUuid());

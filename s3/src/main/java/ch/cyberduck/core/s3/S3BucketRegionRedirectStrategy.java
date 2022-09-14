@@ -15,7 +15,9 @@ package ch.cyberduck.core.s3;
  * GNU General Public License for more details.
  */
 
+import ch.cyberduck.core.Host;
 import ch.cyberduck.core.features.Location;
+import ch.cyberduck.core.preferences.HostPreferences;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.Header;
@@ -35,40 +37,56 @@ import org.jets3t.service.utils.ServiceUtils;
 public class S3BucketRegionRedirectStrategy extends DefaultRedirectStrategy {
     private static final Logger log = LogManager.getLogger(S3BucketRegionRedirectStrategy.class);
 
-    private final RequestEntityRestStorageService requestEntityRestStorageService;
-    private final S3Session session;
+    private final RequestEntityRestStorageService service;
+    private final Host host;
     private final RequestEntityRestStorageService authorizer;
 
-    public S3BucketRegionRedirectStrategy(final RequestEntityRestStorageService requestEntityRestStorageService, final S3Session session, final RequestEntityRestStorageService authorizer) {
-        this.requestEntityRestStorageService = requestEntityRestStorageService;
-        this.session = session;
+    public S3BucketRegionRedirectStrategy(final RequestEntityRestStorageService service, final Host host, final RequestEntityRestStorageService authorizer) {
+        this.service = service;
+        this.host = host;
         this.authorizer = authorizer;
     }
 
     @Override
     public HttpUriRequest getRedirect(final HttpRequest request, final HttpResponse response, final HttpContext context) throws ProtocolException {
         if(response.containsHeader("x-amz-bucket-region")) {
+            if(new HostPreferences(host).getBoolean("s3.bucket.virtualhost.disable")) {
+                if(log.isWarnEnabled()) {
+                    log.warn(String.format("Virtual host style requests are disabled but received redirect response %s with x-amz-bucket-region %s", response, response.getFirstHeader("x-amz-bucket-region")));
+                }
+                throw new RedirectException(response.getFirstHeader("x-amz-bucket-region").getValue());
+            }
             final Header header = response.getFirstHeader("x-amz-bucket-region");
-            log.warn(String.format("Received redirect response %s with %s", response, header));
+            if(log.isWarnEnabled()) {
+                log.warn(String.format("Received redirect response %s with %s", response, header));
+            }
+            final String region = header.getValue();
             final String uri = StringUtils.replaceEach(request.getRequestLine().getUri(),
-                    session.getHost().getProtocol().getRegions().stream().map(Location.Name::getIdentifier).toArray(String[]::new),
-                    session.getHost().getProtocol().getRegions().stream().map(location -> header.getValue()).toArray(String[]::new));
+                    host.getProtocol().getRegions().stream().map(Location.Name::getIdentifier).toArray(String[]::new),
+                    host.getProtocol().getRegions().stream().map(location -> region).toArray(String[]::new));
             final HttpUriRequest redirect = RequestBuilder.copy(request).setUri(uri).build();
-            log.warn(String.format("Retry request with URI %s", redirect.getURI()));
+            if(log.isWarnEnabled()) {
+                log.warn(String.format("Retry request with URI %s", redirect.getURI()));
+            }
+            final String bucketName = ServiceUtils.findBucketNameInHostOrPath(redirect.getURI(), RequestEntityRestStorageService.createRegionSpecificEndpoint(host, region));
+            if(log.isDebugEnabled()) {
+                log.debug(String.format("Determined bucket %s from request %s", bucketName, request));
+            }
             try {
-                authorizer.authorizeHttpRequest(redirect, context, null);
+                authorizer.authorizeHttpRequest(bucketName, redirect, context, null);
             }
             catch(ServiceException e) {
+                if(log.isWarnEnabled()) {
+                    log.warn(String.format("Failure %s authorizing request %s", e, request));
+                }
                 throw new RedirectException(e.getMessage(), e);
             }
             // Update cache with new region
-            if(StringUtils.isEmpty(RequestEntityRestStorageService.findBucketInHostname(session.getHost()))) {
-                requestEntityRestStorageService.getRegionEndpointCache().putRegionForBucketName(ServiceUtils.findBucketNameInHostname(((HttpUriRequest) request).getURI().getHost(),
-                        requestEntityRestStorageService.getJetS3tProperties().getStringProperty("s3service.s3-endpoint", session.getHost().getHostname())), header.getValue());
-            }
-            else {
-                requestEntityRestStorageService.getRegionEndpointCache().putRegionForBucketName(
-                        RequestEntityRestStorageService.findBucketInHostname(session.getHost()), header.getValue());
+            if(bucketName != null) {
+                if(log.isDebugEnabled()) {
+                    log.debug(String.format("Cache region %s for bucket %s", region, bucketName));
+                }
+                service.getRegionEndpointCache().putRegionForBucketName(bucketName, region);
             }
             return redirect;
         }

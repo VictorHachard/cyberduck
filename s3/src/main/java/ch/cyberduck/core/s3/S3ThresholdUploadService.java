@@ -39,18 +39,20 @@ public class S3ThresholdUploadService implements Upload<StorageObject> {
     private static final Logger log = LogManager.getLogger(S3ThresholdUploadService.class);
 
     private final S3Session session;
+    private final S3AccessControlListFeature acl;
     private final Long threshold;
 
     private Write<StorageObject> writer;
 
-    public S3ThresholdUploadService(final S3Session session) {
-        this(session, new HostPreferences(session.getHost()).getLong("s3.upload.multipart.threshold"));
+    public S3ThresholdUploadService(final S3Session session, final S3AccessControlListFeature acl) {
+        this(session, acl, new HostPreferences(session.getHost()).getLong("s3.upload.multipart.threshold"));
     }
 
-    public S3ThresholdUploadService(final S3Session session, final Long threshold) {
+    public S3ThresholdUploadService(final S3Session session, final S3AccessControlListFeature acl, final Long threshold) {
         this.session = session;
+        this.acl = acl;
         this.threshold = threshold;
-        this.writer = new S3WriteFeature(session);
+        this.writer = new S3WriteFeature(session, acl);
     }
 
     @Override
@@ -71,11 +73,18 @@ public class S3ThresholdUploadService implements Upload<StorageObject> {
                 }
             }
             try {
-                return new S3MultipartUploadService(session, writer).upload(file, local, throttle, listener, status, prompt);
+                return new S3MultipartUploadService(session, writer, acl).upload(file, local, throttle, listener, status, prompt);
             }
             catch(NotfoundException | InteroperabilityException e) {
-                log.warn(String.format("Failure using multipart upload %s. Fallback to single upload.", e.getMessage()));
+                log.warn(String.format("Failure %s using multipart upload. Fallback to single upload.", e));
                 status.append(false);
+                try {
+                    return new S3SingleUploadService(session, writer).upload(file, local, throttle, listener, status, prompt);
+                }
+                catch(BackgroundException f) {
+                    log.warn(String.format("Failure %s using single upload. Throw original multipart failure %s", e, e));
+                    throw e;
+                }
             }
         }
         // Use single upload service

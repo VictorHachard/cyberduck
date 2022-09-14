@@ -91,6 +91,10 @@ public final class Acl extends HashMap<Acl.User, Set<Acl.Role>> implements Seria
      * Canned ACL identifier
      */
     private final String canned;
+    /**
+     * Read only when false
+     */
+    private boolean editable = true;
 
     public Acl(final String canned) {
         this.canned = canned;
@@ -109,15 +113,24 @@ public final class Acl extends HashMap<Acl.User, Set<Acl.Role>> implements Seria
     public Acl(final Acl other) {
         this.putAll(other);
         this.canned = other.canned;
+        this.editable = other.editable;
     }
 
     public boolean isCanned() {
         return CANNED_PRIVATE.equals(this)
-            || CANNED_PUBLIC_READ_WRITE.equals(this)
-            || CANNED_PUBLIC_READ.equals(this)
-            || CANNED_AUTHENTICATED_READ.equals(this)
-            || CANNED_BUCKET_OWNER_FULLCONTROL.equals(this)
-            || CANNED_BUCKET_OWNER_READ.equals(this);
+                || CANNED_PUBLIC_READ_WRITE.equals(this)
+                || CANNED_PUBLIC_READ.equals(this)
+                || CANNED_AUTHENTICATED_READ.equals(this)
+                || CANNED_BUCKET_OWNER_FULLCONTROL.equals(this)
+                || CANNED_BUCKET_OWNER_READ.equals(this);
+    }
+
+    public boolean isEditable() {
+        return editable;
+    }
+
+    public void setEditable(final boolean editable) {
+        this.editable = editable;
     }
 
     public String getCannedString() {
@@ -173,7 +186,7 @@ public final class Acl extends HashMap<Acl.User, Set<Acl.Role>> implements Seria
     }
 
     @Override
-    public <T> T serialize(final Serializer dict) {
+    public <T> T serialize(final Serializer<T> dict) {
         for(Entry<User, Set<Role>> entry : this.entrySet()) {
             final List<Role> roles = new ArrayList<>(entry.getValue());
             dict.setListForKey(roles, entry.getKey().getIdentifier());
@@ -527,25 +540,25 @@ public final class Acl extends HashMap<Acl.User, Set<Acl.Role>> implements Seria
         }
 
         @Override
-        public <T> T serialize(final Serializer dict) {
+        public <T> T serialize(final Serializer<T> dict) {
             dict.setStringForKey(name, "Name");
             return dict.getSerialized();
         }
     }
 
-    public static class RoleDictionary {
+    public static class RoleDictionary<T> {
 
-        private final DeserializerFactory deserializer;
+        private final DeserializerFactory<T> deserializer;
 
         public RoleDictionary() {
-            this.deserializer = new DeserializerFactory();
+            this.deserializer = new DeserializerFactory<>();
         }
 
-        public RoleDictionary(final DeserializerFactory deserializer) {
+        public RoleDictionary(final DeserializerFactory<T> deserializer) {
             this.deserializer = deserializer;
         }
 
-        public <T> Acl.Role deserialize(T serialized) {
+        public Acl.Role deserialize(T serialized) {
             final Deserializer dict = deserializer.create(serialized);
             return new Role(dict.stringForKey("Name"));
         }

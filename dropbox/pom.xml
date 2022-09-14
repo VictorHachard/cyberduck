@@ -18,11 +18,12 @@
     <parent>
         <artifactId>parent</artifactId>
         <groupId>ch.cyberduck</groupId>
-        <version>8.4.0-SNAPSHOT</version>
+        <version>8.4.4-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>dropbox</artifactId>
     <properties>
+        <!-- Dependency upgrade blocked by compiler target of later versions-->
         <dropbox-core-sdk-version>5.0.0</dropbox-core-sdk-version>
     </properties>
     <dependencies>

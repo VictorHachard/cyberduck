@@ -105,7 +105,7 @@ public class Path extends AbstractPath implements Referenceable, Serializable {
     }
 
     @Override
-    public <T> T serialize(final Serializer dict) {
+    public <T> T serialize(final Serializer<T> dict) {
         dict.setStringForKey(String.valueOf(type), "Type");
         dict.setStringForKey(this.getAbsolute(), "Remote");
         if(symlink != null) {
@@ -266,14 +266,12 @@ public class Path extends AbstractPath implements Referenceable, Serializable {
         return false;
     }
 
-    /**
-     * @return The absolute path name
-     */
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("Path{");
         sb.append("path='").append(path).append('\'');
         sb.append(", type=").append(type);
+        sb.append(", attributes=").append(attributes);
         sb.append('}');
         return sb.toString();
     }

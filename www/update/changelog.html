@@ -58,11 +58,56 @@
 </p>
 
 <p>
+    <a target="_blank" href="https://trac.cyberduck.io/milestone/8.4.3"><strong>Version 8.4.3</strong></a>
+</p>
+<ul>
+    <li><span class="label label-warning">Bugfix</span> Repeated prompt to verify server fingerprint (SFTP, Windows) (<a
+            target="_blank" href="https://trac.cyberduck.io/ticket/13638">#13638</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> OAuth token not saved in credentials manager (Dropbox, Windows)
+        (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13613">#13613</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Malformed authorization header with wrong region when browsing
+        buckets in multiple regions (S3)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Lower memory footprint regardless of available memory on system (macOS)</li>
+</ul>
+
+<p>
+    <a target="_blank" href="https://trac.cyberduck.io/milestone/8.4.2"><strong>Version 8.4.2</strong></a>
+</p>
+<ul>
+    <li><span class="label label-warning">Bugfix</span> Setting to always open default editor application set in
+        Preferences (Windows) (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13546">#13546</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Unable to complete OAuth flow with missing scheme handler
+        registered when running in sandbox (Google Storage, Google Drive) (Mac App Store)
+    </li>
+</ul>
+
+<p>
+    <a target="_blank" href="https://trac.cyberduck.io/milestone/8.4.1"><strong>Version 8.4.1</strong></a>
+</p>
+<ul>
+    <li><span class="label label-warning">Bugfix</span> Crash running on versions prior macOS 11 (<a
+            target="_blank" href="https://trac.cyberduck.io/ticket/13521">#13521</a>)
+    </li>
+</ul>
+
+<p>
     <a target="_blank" href="https://trac.cyberduck.io/milestone/8.4.0"><strong>Version 8.4.0</strong></a>
 </p>
 <ul>
-    <li><span class="label label-success">Feature</span> Windows 10 Build 14393/Windows Server 2016 or later required
-        (Windows)
+    <li><span class="label label-success">Feature</span> Revert previous file versions in Info panel (S3, Backblaze B2,
+        Dropbox, Google Storage, OneDrive, Microsoft Sharepoint)
+    </li>
+    <li><span class="label label-success">Feature</span> Delete previous file versions in Info panel (S3, Backblaze B2,
+        Google Drive, Google Storage)
+    </li>
+    <li><span class="label label-success">Feature</span> View previous file versions in Info panel (S3, Backblaze B2,
+        Dropbox, Google Drive, Google Storage, OneDrive, Microsoft Sharepoint)
     </li>
     <li><span class="label label-success">Feature</span> Support applications installed from Windows Store for editing
         files (<a
@@ -74,6 +119,54 @@
     </li>
     <li><span class="label label-success">Feature</span> Migrate OAuth out-of-band flow to an alternative method (<a
             target="_blank" href="https://trac.cyberduck.io/ticket/13360">#13360</a>) (Google Drive, Google Storage)
+    </li>
+    <li><span class="label label-success">Feature</span> Add menu item to request files for protocols that support
+        upload share links (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13426">#13426</a>) (Box, Nextcloud, ownCloud)
+    </li>
+    <li><span class="label label-success">Feature</span> Include region identifier in region selection when creating new
+        bucket (S3) (#13501)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Do not attempt to set ACL on files uploaded to bucket with
+        owner controls set that disallows ACLs (S3) (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13386">#13386</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Register custom DNS resolver to handle IPv6 preference (<a
+            target="_blank" href="https://trac.cyberduck.io/ticket/13399">#13399</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Failure opening vault (Cryptomator, FTP) (<a
+            target="_blank" href="https://trac.cyberduck.io/ticket/13375">#13375</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Mismatch between SHA256 hash error when downloading files
+        (Dropbox) (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13361">#13361</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> No such file error when uploading with temporary filename
+        option (SFTP) (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13367">#13367</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Transfer acceleration endpoints not used (S3) (<a
+            target="_blank" href="https://trac.cyberduck.io/ticket/13359">#13359</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Delete multiple files with batch request (DRACOON)</li>
+    <li><span class="label label-warning">Bugfix</span> RequestTimeTooSkewed error with computer date settings not using
+        Gregorian calendar (S3) (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13454">#13454</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Fix error reporting to display exact parser failure for
+        unexpected response contents (S3) (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13383">#13383</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Invalid hostname used when completing multipart upload when
+        connecting to single bucket (S3)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Unable to delete object version created prior enabling file
+        versioning for bucket (S3) (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13507">#13507</a>)
+    </li>
+    <li><span class="label label-warning">Bugfix</span> Bucket versioning checkbox should reflect lifecycle
+        configuration (Backblaze B2) (<a
+                target="_blank" href="https://trac.cyberduck.io/ticket/13505">#13505</a>)
     </li>
 </ul>
 

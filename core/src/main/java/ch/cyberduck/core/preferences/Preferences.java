@@ -756,10 +756,6 @@ public abstract class Preferences implements Locales, PreferencesReader {
 
         this.setDefault("s3.versioning.enable", String.valueOf(true));
         /*
-         * Reference previous versions in file attributes
-         */
-        this.setDefault("s3.versioning.references.enable", String.valueOf(false));
-        /*
          * Standard,Bulk,Expedited
          */
         this.setDefault("s3.glacier.restore.tier", "Standard");
@@ -781,10 +777,6 @@ public abstract class Preferences implements Locales, PreferencesReader {
         this.setDefault("googlestorage.lifecycle.transition.class", "ARCHIVE");
         this.setDefault("googlestorage.acl.default", "private");
         this.setDefault("googlestorage.location", "us");
-        /*
-         * Reference previous versions in file attributes
-         */
-        this.setDefault("googlestorage.versioning.references.enable", String.valueOf(false));
 
         this.setDefault("onedrive.listing.chunksize", String.valueOf(1000));
         /*
@@ -880,7 +872,6 @@ public abstract class Preferences implements Locales, PreferencesReader {
         this.setDefault("sds.delete.dataroom.enable", String.valueOf(true));
         this.setDefault("sds.upload.sharelinks.keep", String.valueOf(true));
         this.setDefault("sds.upload.s3.enable", String.valueOf(true));
-        this.setDefault("sds.versioning.references.enable", String.valueOf(false));
         this.setDefault("sds.upload.s3.status.delay", String.valueOf(50)); // In millis
         this.setDefault("sds.upload.s3.status.period", String.valueOf(100)); // In millis
         this.setDefault("sds.upload.s3.status.interrupt.ms", String.valueOf(30 * 1000L)); // 30sec in millis
@@ -940,6 +931,7 @@ public abstract class Preferences implements Locales, PreferencesReader {
         this.setDefault("webdav.microsoftiis.header.translate", String.valueOf(true));
 
         this.setDefault("webdav.list.handler.sax", String.valueOf(true));
+        this.setDefault("webdav.lock.enable", String.valueOf(true));
 
         /*
          * Session pool
@@ -1197,6 +1189,13 @@ public abstract class Preferences implements Locales, PreferencesReader {
         this.setDefault("preferences.update.enable", String.valueOf(true));
         this.setDefault("preferences.cryptomator.enable", String.valueOf(true));
 
+        this.setDefault("info.general.enable", String.valueOf(true));
+        this.setDefault("info.permissions.enable", String.valueOf(true));
+        this.setDefault("info.acl.enable", String.valueOf(true));
+        this.setDefault("info.distribution.enable", String.valueOf(true));
+        this.setDefault("info.s3.enable", String.valueOf(true));
+        this.setDefault("info.metadata.enable", String.valueOf(true));
+        this.setDefault("info.versions.enable", String.valueOf(true));
     }
 
     /**
@@ -1382,6 +1381,7 @@ public abstract class Preferences implements Locales, PreferencesReader {
         this.setDefault("factory.providerhelpservice.class", DefaultProviderHelpService.class.getName());
         this.setDefault("factory.quicklook.class", ApplicationLauncherQuicklook.class.getName());
         this.setDefault("factory.connectiontimeout.class", DefaultConnectionTimeout.class.getName());
+        this.setDefault("factory.authorizationcodeprovider.class", "ch.cyberduck.core.oauth.BrowserOAuth2AuthorizationCodeProvider");
     }
 
     /**

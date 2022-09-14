@@ -491,23 +491,14 @@ namespace Ch.Cyberduck.Ui.Controller
         void ICyberduck.RegisterProfile(string profilePath)
         {
             Local f = LocalFactory.get(profilePath);
-            Protocol profile = (Protocol)ProfileReaderFactory.get().read(f);
-            if (null == profile)
+            Local copy = ProtocolFactory.get().register(f);
+            if (null == copy)
             {
                 return;
             }
-            if (profile.isEnabled())
-            {
-                ProtocolFactory.get().register(profile);
-                Host host = new Host(profile, profile.getDefaultHostname(), profile.getDefaultPort());
-                NewBrowser().AddBookmark(host);
-                // Register in application support
-                Local profiles =
-                    LocalFactory.get(SupportDirectoryFinderFactory.get().find(),
-                        PreferencesFactory.get().getProperty("profiles.folder.name"));
-                profiles.mkdir();
-                f.copy(LocalFactory.get(profiles, f.getName()));
-            }
+            Protocol profile = (Protocol)ProfileReaderFactory.get().read(copy);
+            Host host = new Host(profile, profile.getDefaultHostname(), profile.getDefaultPort());
+            NewBrowser().AddBookmark(host);
         }
 
         void ICyberduck.RegisterRegistration(string registrationPath)
@@ -570,10 +561,10 @@ namespace Ch.Cyberduck.Ui.Controller
         private static void InitializeProtocolHandler()
         {
             var self = new Application(System.Windows.Forms.Application.ExecutablePath);
-            var handler = SchemeHandlerFactory.get();
             if (PreferencesFactory.get().getBoolean("defaulthandler.reminder") &&
                             PreferencesFactory.get().getInteger("uses") > 0)
             {
+                var handler = SchemeHandlerFactory.get();
                 if (
                     !handler.isDefaultHandler(Arrays.asList(Scheme.ftp.name(), Scheme.ftps.name(), Scheme.sftp.name()), self))
                 {
@@ -603,12 +594,6 @@ namespace Ch.Cyberduck.Ui.Controller
                         });
                 }
             }
-            // Register OAuth handler
-            var protocols = ProtocolFactory.get();
-            handler.setDefaultHandler(self, Arrays.asList(
-                PreferencesFactory.get().getProperty("oauth.handler.scheme"),
-                new Uri(protocols.forType(Protocol.Type.googlestorage).getOAuthRedirectUrl()).Scheme,
-                new Uri(protocols.forType(Protocol.Type.googledrive).getOAuthRedirectUrl()).Scheme));
         }
 
         private static void InitJumpList()
@@ -860,13 +845,12 @@ namespace Ch.Cyberduck.Ui.Controller
                 _updater = PeriodicUpdateCheckerFactory.get();
                 if (_updater.hasUpdatePrivileges())
                 {
-                    DateTime lastCheck = new DateTime(PreferencesFactory.get().getLong("update.check.last"));
-                    TimeSpan span = DateTime.Now.Subtract(lastCheck);
-                    _updater.register();
-                    if (span.TotalSeconds >= PreferencesFactory.get().getLong("update.check.interval"))
+                    long next = PreferencesFactory.get().getLong("update.check.timestamp") + PreferencesFactory.get().getLong("update.check.interval") * 1000;
+                    if(next < DateTimeOffset.Now.ToUnixTimeMilliseconds())
                     {
                         _updater.check(true);
                     }
+                    _updater.register();
                 }
             }
             if (PreferencesFactory.get().getBoolean("profiles.discovery.updater.enable"))

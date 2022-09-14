@@ -47,7 +47,9 @@ public class SDSAttributesAdapter implements AttributesAdapter<Node> {
         final PathAttributes attributes = new PathAttributes();
         attributes.setVersionId(String.valueOf(node.getId()));
         attributes.setRevision(node.getBranchVersion());
-        attributes.setChecksum(Checksum.parse(node.getHash()));
+        if(!node.isIsEncrypted()) {
+            attributes.setChecksum(Checksum.parse(node.getHash()));
+        }
         // Legacy
         attributes.setModificationDate(node.getUpdatedAt() != null ? node.getUpdatedAt().getMillis() : -1L);
         // Override for >4.22
@@ -93,7 +95,9 @@ public class SDSAttributesAdapter implements AttributesAdapter<Node> {
         attributes.setCreationDate(node.getCreatedAt() != null ? node.getCreatedAt().getMillis() : -1L);
         attributes.setModificationDate(node.getUpdatedAt() != null ? node.getUpdatedAt().getMillis() : -1L);
         attributes.setSize(node.getSize());
-        attributes.setOwner(node.getUpdatedBy().getDisplayName());
+        attributes.setOwner(node.getDeletedBy().getDisplayName());
+        // Read of file in trash not supported
+        attributes.setPermission(new Permission(Permission.Action.none, Permission.Action.none, Permission.Action.none));
         return attributes;
     }
 

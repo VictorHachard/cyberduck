@@ -33,6 +33,7 @@ import ch.cyberduck.core.io.Checksum;
 import ch.cyberduck.core.io.ChecksumCompute;
 import ch.cyberduck.core.io.ChecksumComputeFactory;
 import ch.cyberduck.core.io.HashAlgorithm;
+import ch.cyberduck.core.preferences.HostPreferences;
 import ch.cyberduck.core.transfer.TransferStatus;
 
 import org.apache.commons.lang3.StringUtils;
@@ -53,12 +54,14 @@ public class S3WriteFeature extends AbstractHttpWriteFeature<StorageObject> impl
     private static final Logger log = LogManager.getLogger(S3WriteFeature.class);
 
     private final PathContainerService containerService;
+    private final S3AccessControlListFeature acl;
     private final S3Session session;
 
-    public S3WriteFeature(final S3Session session) {
+    public S3WriteFeature(final S3Session session, final S3AccessControlListFeature acl) {
         super(new S3AttributesAdapter());
         this.session = session;
         this.containerService = session.getFeature(PathContainerService.class);
+        this.acl = acl;
     }
 
     @Override
@@ -96,7 +99,7 @@ public class S3WriteFeature extends AbstractHttpWriteFeature<StorageObject> impl
     /**
      * Add default metadata
      */
-    protected S3Object getDetails(final Path file, final TransferStatus status) throws BackgroundException {
+    protected S3Object getDetails(final Path file, final TransferStatus status) {
         final S3Object object = new S3Object(containerService.getKey(file));
         final String mime = status.getMime();
         if(StringUtils.isNotBlank(mime)) {
@@ -129,7 +132,7 @@ public class S3WriteFeature extends AbstractHttpWriteFeature<StorageObject> impl
                 if(log.isDebugEnabled()) {
                     log.debug(String.format("Set canned ACL %s for %s", status.getAcl(), file));
                 }
-                object.setAcl(new S3AccessControlListFeature(session).toAcl(status.getAcl()));
+                object.setAcl(acl.toAcl(status.getAcl()));
                 // Reset in status to skip setting ACL in upload filter already applied as canned ACL
                 status.setAcl(Acl.EMPTY);
             }
@@ -146,26 +149,23 @@ public class S3WriteFeature extends AbstractHttpWriteFeature<StorageObject> impl
 
     @Override
     public Append append(final Path file, final TransferStatus status) throws BackgroundException {
-        try {
-            final S3DefaultMultipartService multipartService = new S3DefaultMultipartService(session);
-            final List<MultipartUpload> upload = multipartService.find(file);
-            if(!upload.isEmpty()) {
-                Long size = 0L;
-                for(MultipartPart completed : multipartService.list(upload.iterator().next())) {
-                    size += completed.getSize();
+        if(new HostPreferences(session.getHost()).getBoolean("s3.upload.multipart")) {
+            try {
+                final S3DefaultMultipartService multipartService = new S3DefaultMultipartService(session);
+                final List<MultipartUpload> upload = multipartService.find(file);
+                if(!upload.isEmpty()) {
+                    Long size = 0L;
+                    for(MultipartPart completed : multipartService.list(upload.iterator().next())) {
+                        size += completed.getSize();
+                    }
+                    return new Append(true).withStatus(status).withSize(size);
                 }
-                return new Append(true).withStatus(status).withSize(size);
+            }
+            catch(AccessDeniedException | InteroperabilityException e) {
+                log.warn(String.format("Ignore failure listing incomplete multipart uploads. %s", e));
             }
         }
-        catch(AccessDeniedException | InteroperabilityException e) {
-            log.warn(String.format("Ignore failure listing incomplete multipart uploads. %s", e));
-        }
         return Write.override;
-    }
-
-    @Override
-    public boolean temporary() {
-        return false;
     }
 
     @Override

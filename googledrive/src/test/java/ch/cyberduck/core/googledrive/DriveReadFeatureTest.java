@@ -17,9 +17,11 @@ package ch.cyberduck.core.googledrive;
 
 import ch.cyberduck.core.AlphanumericRandomStringService;
 import ch.cyberduck.core.DisabledConnectionCallback;
+import ch.cyberduck.core.DisabledListProgressListener;
 import ch.cyberduck.core.DisabledLoginCallback;
 import ch.cyberduck.core.Local;
 import ch.cyberduck.core.Path;
+import ch.cyberduck.core.SimplePathPredicate;
 import ch.cyberduck.core.exception.NotfoundException;
 import ch.cyberduck.core.features.Delete;
 import ch.cyberduck.core.http.HttpResponseOutputStream;
@@ -134,7 +136,7 @@ public class DriveReadFeatureTest extends AbstractDriveTest {
         final TransferStatus writeStatus = new TransferStatus();
         writeStatus.setLength(content.length);
         final Path directory = new DriveDirectoryFeature(session, fileid).mkdir(
-            new Path(new AlphanumericRandomStringService().random(), EnumSet.of(Path.Type.directory, Path.Type.volume)), new TransferStatus());
+                new Path(new AlphanumericRandomStringService().random(), EnumSet.of(Path.Type.directory, Path.Type.volume)), new TransferStatus());
         final Path test = new Path(directory, new AlphanumericRandomStringService().random(), EnumSet.of(Path.Type.file));
         final DriveWriteFeature writer = new DriveWriteFeature(session, fileid);
         final HttpResponseOutputStream<File> out = writer.write(test, writeStatus, new DisabledConnectionCallback());
@@ -143,6 +145,39 @@ public class DriveReadFeatureTest extends AbstractDriveTest {
         final CountingInputStream in = new CountingInputStream(new DriveReadFeature(session, fileid).read(test, status, new DisabledConnectionCallback()));
         in.close();
         assertEquals(0L, in.getByteCount(), 0L);
+        new DriveDeleteFeature(session, fileid).delete(Arrays.asList(test, directory), new DisabledLoginCallback(), new Delete.DisabledCallback());
+    }
+
+    @Test
+    public void testReadRevision() throws Exception {
+        final DriveFileIdProvider fileid = new DriveFileIdProvider(session);
+        final Path directory = new DriveDirectoryFeature(session, fileid).mkdir(
+                new Path(new AlphanumericRandomStringService().random(), EnumSet.of(Path.Type.directory, Path.Type.volume)), new TransferStatus());
+        final Path test = new Path(directory, new AlphanumericRandomStringService().random(), EnumSet.of(Path.Type.file));
+        final byte[] content = RandomUtils.nextBytes(1645);
+        {
+            final TransferStatus status = new TransferStatus().withLength(content.length);
+            final DriveWriteFeature writer = new DriveWriteFeature(session, fileid);
+            final HttpResponseOutputStream<File> out = writer.write(test, status, new DisabledConnectionCallback());
+            new StreamCopier(status, status).transfer(new ByteArrayInputStream(content), out);
+        }
+        final Path versioned = new DriveVersioningFeature(session, fileid).list(test, new DisabledListProgressListener()).find(new SimplePathPredicate(test));
+        assertNotNull(versioned.attributes().getVersionId());
+        assertTrue(versioned.attributes().isDuplicate());
+        assertEquals(content.length, versioned.attributes().getSize());
+        assertArrayEquals(content, IOUtils.readFully(new DriveReadFeature(session, fileid).read(versioned, new TransferStatus(), new DisabledConnectionCallback()), content.length));
+        // New version
+        {
+            final byte[] newcontent = RandomUtils.nextBytes(1045);
+            final TransferStatus status = new TransferStatus().withLength(newcontent.length);
+            final DriveWriteFeature writer = new DriveWriteFeature(session, fileid);
+            final HttpResponseOutputStream<File> out = writer.write(test, status.exists(true), new DisabledConnectionCallback());
+            new StreamCopier(status, status).transfer(new ByteArrayInputStream(newcontent), out);
+        }
+        assertEquals(2, new DriveVersioningFeature(session, fileid).list(test, new DisabledListProgressListener()).size());
+        // Permanently delete revision
+        //new DriveDeleteFeature(session, fileid).delete(Collections.singletonList(versioned), new DisabledLoginCallback(), new Delete.DisabledCallback());
+        assertTrue(new DriveFindFeature(session, fileid).find(test));
         new DriveDeleteFeature(session, fileid).delete(Arrays.asList(test, directory), new DisabledLoginCallback(), new Delete.DisabledCallback());
     }
 }

@@ -39,7 +39,7 @@ import java.util.Set;
 public abstract class AbstractProtocol implements Protocol {
 
     @Override
-    public <T> T serialize(final Serializer dict) {
+    public <T> T serialize(final Serializer<T> dict) {
         return null;
     }
 
@@ -166,6 +166,11 @@ public abstract class AbstractProtocol implements Protocol {
     @Override
     public boolean isUTCTimezone() {
         return true;
+    }
+
+    @Override
+    public String getHostnamePlaceholder() {
+        return this.getDefaultHostname();
     }
 
     @Override

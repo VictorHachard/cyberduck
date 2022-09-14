@@ -18,6 +18,7 @@ package ch.cyberduck.core.dropbox;
 import ch.cyberduck.core.AbstractDropboxTest;
 import ch.cyberduck.core.AlphanumericRandomStringService;
 import ch.cyberduck.core.DisabledConnectionCallback;
+import ch.cyberduck.core.DisabledListProgressListener;
 import ch.cyberduck.core.DisabledLoginCallback;
 import ch.cyberduck.core.Local;
 import ch.cyberduck.core.Path;
@@ -128,6 +129,24 @@ public class DropboxReadFeatureTest extends AbstractDropboxTest {
         final CountingInputStream in = new CountingInputStream(new DropboxReadFeature(session).read(test, status, new DisabledConnectionCallback()));
         in.close();
         assertEquals(0L, in.getByteCount(), 0L);
+        new DropboxDeleteFeature(session).delete(Arrays.asList(test, directory), new DisabledLoginCallback(), new Delete.DisabledCallback());
+    }
+
+    @Test
+    public void testReadRevision() throws Exception {
+        final byte[] content = RandomUtils.nextBytes(1645);
+        final TransferStatus status = new TransferStatus().withLength(content.length);
+        final Path directory = new DropboxDirectoryFeature(session).mkdir(
+                new Path(new AlphanumericRandomStringService().random(), EnumSet.of(Path.Type.directory, Path.Type.volume)), new TransferStatus());
+        final Path test = new Path(directory, new AlphanumericRandomStringService().random(), EnumSet.of(Path.Type.file));
+        final DropboxWriteFeature writer = new DropboxWriteFeature(session);
+        final HttpResponseOutputStream<Metadata> out = writer.write(test, status, new DisabledConnectionCallback());
+        new StreamCopier(status, status).transfer(new ByteArrayInputStream(content), out);
+        test.withAttributes(status.getResponse());
+        assertNotNull(test.attributes().getVersionId());
+        // Only latest version
+        assertTrue(new DropboxVersioningFeature(session).list(test, new DisabledListProgressListener()).isEmpty());
+        assertArrayEquals(content, IOUtils.readFully(new DropboxReadFeature(session).read(test, new TransferStatus(), new DisabledConnectionCallback()), content.length));
         new DropboxDeleteFeature(session).delete(Arrays.asList(test, directory), new DisabledLoginCallback(), new Delete.DisabledCallback());
     }
 }

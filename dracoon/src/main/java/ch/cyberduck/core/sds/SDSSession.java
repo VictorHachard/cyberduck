@@ -76,6 +76,7 @@ import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.glassfish.jersey.client.ClientConfig;
+import org.glassfish.jersey.client.ClientProperties;
 import org.glassfish.jersey.jackson.JacksonFeature;
 import org.glassfish.jersey.media.multipart.MultiPartFeature;
 import org.glassfish.jersey.message.internal.InputStreamProvider;
@@ -190,6 +191,7 @@ public class SDSSession extends HttpSession<SDSApiClient> {
         client.setBasePath(new HostUrlProvider().withUsername(false).withPath(true).get(host.getProtocol().getScheme(), host.getPort(),
                 null, host.getHostname(), host.getProtocol().getContext()));
         client.setHttpClient(ClientBuilder.newClient(new ClientConfig()
+                .property(ClientProperties.SUPPRESS_HTTP_COMPLIANCE_VALIDATION, true)
                 .register(new InputStreamProvider())
                 .register(MultiPartFeature.class)
                 .register(new JSON())
@@ -456,6 +458,9 @@ public class SDSSession extends HttpSession<SDSApiClient> {
         if(softwareVersion.get() == null) {
             try {
                 softwareVersion.set(new PublicApi(client).requestSoftwareVersion(null));
+                if(log.isInfoEnabled()) {
+                    log.info(String.format("Server version %s", softwareVersion.get()));
+                }
             }
             catch(ApiException e) {
                 log.warn(String.format("Failure %s updating software version", new SDSExceptionMappingService(nodeid).map(e)));
@@ -547,7 +552,7 @@ public class SDSSession extends HttpSession<SDSApiClient> {
             return (T) new SDSDirectoryFeature(this, nodeid);
         }
         if(type == Delete.class) {
-            return (T) new SDSDeleteFeature(this, nodeid);
+            return (T) new SDSThresholdDeleteFeature(this, nodeid);
         }
         if(type == VersionIdProvider.class) {
             return (T) nodeid;
